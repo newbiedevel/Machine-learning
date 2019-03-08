@@ -1,0 +1,132 @@
+---
+title: "prediction 2"
+author: "Basma Tharwat"
+date: "March 8, 2019"
+output: html_document
+code_folding: "hide"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+##Read , Explore & Clean the training data
+```{r}
+training = read.csv("pml-training.csv")
+training = training[, -c(1:7)]
+
+# Remove bad columns
+
+bad.col = !apply(training, 2, function(x) sum(is.na(x)) > 0.95*nrow(training) || 
+                     sum(x == "") > 0.95*nrow(training))
+bad.col[is.na(bad.col) == T] = F
+training = training[, bad.col]
+
+# Remove near zero values
+
+suppressMessages(require(caret))
+
+training.zeroVar = nearZeroVar(training, saveMetrics = T)
+
+# Remove incomplete lines
+
+training = training[complete.cases(training), ]
+
+# Assessing the Data
+
+str(training)
+```
+```{r}
+# Assessing correlated col
+
+suppressMessages(require(corrr))
+
+rdf = correlate(subset(training, select = -c(classe)))
+rplot(rdf, print_cor = T, legend = T, colours = heat.colors(20, alpha = .5))
+
+```
+
+```{r}
+# Using Random Forest
+
+set.seed(2964)
+
+
+# In this pretest I made a model valuation adjustment using only 5% of the training database. 
+# After this step we will use only the most significant with the full dataset training.
+
+inTrain = createDataPartition(training$classe, p = 0.05, list = F)
+crossv = training[-inTrain, ]
+training2 = training[inTrain, ]
+
+dim(crossv); dim(training2)
+```
+```{r}
+mod = suppressMessages(
+    train(classe ~ ., method = "rf", data = training2, 
+          trControl = trainControl(method = "cv"), number = 25)
+)
+
+mod$finalModel
+```
+
+
+```{r}
+pred.test = predict(mod, crossv); confusionMatrix(pred.test, crossv$classe)
+
+
+
+```
+
+```{r}
+
+# Create fine tunning
+
+mod.varImp = varImp(mod)
+plot(mod.varImp, main = "Importance of all Variables for 'rf' model")
+```
+
+```
+
+
+
+```{r}
+
+
+suppressMessages(require(tree))
+
+tr = tree(classe ~ . , data = training)
+plot(tr); text(tr, cex = .75)
+
+
+```
+
+```{r}
+
+testing = read.csv("pml-testing.csv")
+testing = testing[, -c(1:7)]
+bad.col = !apply(testing, 2, function(x) sum(is.na(x)) > 0.95*nrow(testing) || 
+                     sum(x == "") > 0.95*nrow(testing))
+bad.col[is.na(bad.col) == T] = F
+testing = testing[, bad.col]
+testing = testing[complete.cases(testing), ]
+
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+x = testing
+
+
+```
+
+```{r pressure, echo=FALSE}
+
+```
+
+
+
+
